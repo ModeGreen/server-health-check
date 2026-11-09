@@ -1,0 +1,4 @@
+# Default thresholds for all disks, % of the disk in use
+default:
+  warning: 75
+  critical: 90
