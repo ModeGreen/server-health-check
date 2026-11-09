@@ -16,6 +16,37 @@ import subprocess
 import yaml
 from datetime import datetime
 
+MEMINFO = "/proc/meminfo"
+LOADAVG = "/proc/loadavg"
+
+def read_loadavg(path):
+    with open(path) as f:
+        load_15 = float(f.read().split()[2])
+    return load_15
+
+def check_load(load, cpus, warning, critical):
+    percent = load / cpus * 100
+    status = get_status(percent, warning, critical)
+    return {"name": "load", "percent": round(percent, 1), "status": status}
+
+def read_meminfo(path):
+    with open(path) as f:
+        for line in f:
+            line = line.split()
+            name = line[0]
+            value = line[1]
+            if name == "MemTotal:":
+                total_kb = int(value)
+            elif name == "MemAvailable:":
+                available_kb = int(value)
+    return total_kb, available_kb
+
+def check_memory(total_kb, available_kb, warning, critical):
+    used = total_kb - available_kb
+    percent = used / total_kb * 100
+    status = get_status(percent, warning, critical)
+    return {"name": "memory", "percent": round(percent, 1), "status": status}
+
 def make_history_line(now, host, status, text):
     text = " ".join(text.split())
     return f"{now.strftime('%Y-%m-%d %H:%M:%S')} {host} {status} {text}"
@@ -62,6 +93,21 @@ def remove_ignored(disks, config):
             ignored_removed.append(disk)
     return ignored_removed
 
+def get_section(config, name):
+    if not isinstance(config, dict) or not isinstance(config.get(name), dict):
+        raise ValueError(f"config: section '{name}' is missing")
+    return config[name]
+
+def get_thresholds(config, name):
+    section = get_section(config, name)
+    warning = section.get("warning")
+    critical = section.get("critical")
+    if type(warning) != int or type(critical) != int:
+        raise ValueError(f"{name}: warning and critical must be integers")
+    if not critical > warning:
+        raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    return warning, critical
+
 def get_disk_thresholds(name, config):
     warning = config["default"]["warning"]
     critical = config["default"]["critical"]
@@ -103,6 +149,8 @@ def get_exit_code(alerts):
 def main():
     script_dir = Path(__file__).parent
     journal = script_dir / "history.log"
+    
+    # Loading config
     try:
         config = load_config(os.environ.get("HEALTH_CHECK_CONFIG", script_dir / "health_check.yaml"))
     except (OSError, yaml.YAMLError) as e:
@@ -111,6 +159,7 @@ def main():
         write_history(journal, "UNKNOWN", message)
         return 3
 
+    # Checking storage
     try:
         disks = parse_findmnt(get_findmnt_output())
     except RuntimeError as e:
@@ -119,20 +168,35 @@ def main():
         write_history(journal, "UNKNOWN", message)
         return 3
 
-    disks = remove_ignored(disks, config)
-
     try:
-        alerts = find_alerts(disks, config)
+        disk_config_section = get_section(config, "disk")
+        disks = remove_ignored(disks, disk_config_section)
+        alerts = find_alerts(disks, disk_config_section)
+        mem_warning, mem_critical = get_thresholds(config, "memory")
+        load_warning, load_critical = get_thresholds(config, "load")
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
         write_history(journal, "UNKNOWN", message)
         return 3
 
+    # Checking ram
+    total_kb, available_kb = read_meminfo(MEMINFO)
+    mem_data = check_memory(total_kb, available_kb, mem_warning, mem_critical)
+    if mem_data["status"] != "OK":
+        alerts.append(mem_data)
+
+    #Checking cpu load
+    cpus = os.cpu_count()
+    load = read_loadavg(LOADAVG)
+    load_data = check_load(load, cpus, load_warning, load_critical)
+    if load_data["status"] != "OK":
+        alerts.append(load_data)
+
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Disks checked: {len(disks)}, with problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%. Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
         print(f"  {alert['name']}: {alert['percent']}% — {alert['status']}")

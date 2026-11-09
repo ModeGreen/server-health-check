@@ -1,4 +1,23 @@
-# Default thresholds for all disks, % of the disk in use
-default:
-  warning: 75
+# Disk usage, % of the disk in use
+disk:
+  default:
+    warning: 75
+    critical: 90
+  # Optional: own thresholds for some disks
+  # disks:
+  #   /var:
+  #     warning: 70
+  #     critical: 85
+  # Optional: disks that are not checked
+  # ignore:
+  #   - /mnt/backup
+
+# Memory in use, % of total (everything except MemAvailable)
+memory:
+  warning: 80
   critical: 90
+
+# CPU load: 15-minute load average per CPU, in % (100 = all CPUs busy)
+load:
+  warning: 100
+  critical: 200
