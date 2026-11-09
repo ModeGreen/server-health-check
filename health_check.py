@@ -19,6 +19,18 @@ from datetime import datetime
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 
+def read_loadavg(path):
+    with open(path) as f:
+        for line in f:
+            line = line.split()
+            load_15 = float(line[2])
+    return load_15
+
+def check_load(load, cpus, warning, critical):
+    percent = load / cpus * 100
+    status = get_status(percent, warning, critical)
+    return {"name": "load", "percent": round(percent, 1), "status": status}
+
 def read_meminfo(path):
     with open(path) as f:
         for line in f:
@@ -163,6 +175,7 @@ def main():
         disks = remove_ignored(disks, disk_config_section)
         alerts = find_alerts(disks, disk_config_section)
         mem_config_section = get_thresholds(config, "memory")
+        load_config_section = get_thresholds(config, "load")
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
@@ -174,6 +187,13 @@ def main():
     mem_data = check_memory(total_kb, available_kb, mem_config_section[0], mem_config_section[1])
     if mem_data["status"] != "OK":
         alerts.append(mem_data)
+
+    #Checking cpu load
+    cpus = os.cpu_count()
+    load = read_loadavg(LOADAVG)
+    load_data = check_load(load, cpus, load_config_section[0], load_config_section[1])
+    if load_data["status"] != "OK":
+        alerts.append(load_data)
 
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
