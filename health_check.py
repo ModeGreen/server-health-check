@@ -16,6 +16,27 @@ import subprocess
 import yaml
 from datetime import datetime
 
+MEMINFO = "/proc/meminfo"
+LOADAVG = "/proc/loadavg"
+
+def read_meminfo(path):
+    with open(path) as f:
+        for line in f:
+            line = line.split()
+            name = line[0]
+            value = line[1]
+            if name == "MemTotal:":
+                total_kb = int(value)
+            elif name == "MemAvailable:":
+                available_kb = int(value)
+    return total_kb, available_kb
+
+def check_memory(total_kb, available_kb, warning, critical):
+    used = total_kb - available_kb
+    percent = used / total_kb * 100
+    status = get_status(percent, warning, critical)
+    return {"name": "memory", "percent": round(percent, 1), "status": status}
+
 def make_history_line(now, host, status, text):
     text = " ".join(text.split())
     return f"{now.strftime('%Y-%m-%d %H:%M:%S')} {host} {status} {text}"
@@ -118,6 +139,8 @@ def get_exit_code(alerts):
 def main():
     script_dir = Path(__file__).parent
     journal = script_dir / "history.log"
+    
+    #Loading config
     try:
         config = load_config(os.environ.get("HEALTH_CHECK_CONFIG", script_dir / "health_check.yaml"))
     except (OSError, yaml.YAMLError) as e:
@@ -126,6 +149,7 @@ def main():
         write_history(journal, "UNKNOWN", message)
         return 3
 
+    #Checking storage
     try:
         disks = parse_findmnt(get_findmnt_output())
     except RuntimeError as e:
@@ -138,11 +162,18 @@ def main():
         disk_config_section = get_section(config, "disk")
         disks = remove_ignored(disks, disk_config_section)
         alerts = find_alerts(disks, disk_config_section)
+        mem_config_section = get_thresholds(config, "memory")
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
         write_history(journal, "UNKNOWN", message)
         return 3
+
+    #Checking ram
+    total_kb, available_kb = read_meminfo(MEMINFO)
+    mem_data = check_memory(total_kb, available_kb, mem_config_section[0], mem_config_section[1])
+    if mem_data["status"] != "OK":
+        alerts.append(mem_data)
 
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
