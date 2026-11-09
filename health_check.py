@@ -198,7 +198,7 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Disks checked: {len(disks)}, with problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data["percent"]}%, load {load_data["percent"]}%. Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
         print(f"  {alert['name']}: {alert['percent']}% — {alert['status']}")
