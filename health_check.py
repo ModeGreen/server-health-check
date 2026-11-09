@@ -62,6 +62,21 @@ def remove_ignored(disks, config):
             ignored_removed.append(disk)
     return ignored_removed
 
+def get_section(config, name):
+    if not isinstance(config, dict) or not isinstance(config.get(name), dict):
+        raise ValueError(f"config: section '{name}' is missing")
+    return config[name]
+
+def get_thresholds(config, name):
+    section = get_section(config, name)
+    warning = section.get("warning")
+    critical = section.get("critical")
+    if type(warning) != int or type(critical) != int:
+        raise ValueError(f"{name}: warning and critical must be integers")
+    if not critical > warning:
+        raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    return warning, critical
+
 def get_disk_thresholds(name, config):
     warning = config["default"]["warning"]
     critical = config["default"]["critical"]
@@ -119,10 +134,10 @@ def main():
         write_history(journal, "UNKNOWN", message)
         return 3
 
-    disks = remove_ignored(disks, config)
-
     try:
-        alerts = find_alerts(disks, config)
+        disk_config_section = get_section(config, "disk")
+        disks = remove_ignored(disks, disk_config_section)
+        alerts = find_alerts(disks, disk_config_section)
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
