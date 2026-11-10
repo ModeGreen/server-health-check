@@ -1,0 +1,8 @@
+[Unit]
+Description=Checking disk space, ram and cpu load, cpu temperature
+
+[Service]
+Type=oneshot
+Enviroment=%h/.config/server-health-check/health_check.yaml
+ExecStart=%h/server-health-check/.venv/bin/python %h/server-health-check/health_check.py
+SuccessExitStatus=1 2
