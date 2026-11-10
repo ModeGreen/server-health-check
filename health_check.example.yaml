@@ -22,6 +22,11 @@ load:
   warning: 100
   critical: 200
 
+# CPU temperature, degrees Celsius (sensor x86_pkg_temp); skipped if there is no sensor
+temperature:
+  warning: 85
+  critical: 95
+
 # Optional: HTTP checks for services, a GET request to each url.
 # 200-399 is OK; any other status or no answer within 5 seconds is CRITICAL.
 # Real addresses go only into your local health_check.yaml, not into Git.

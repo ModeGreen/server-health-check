@@ -21,6 +21,29 @@ from datetime import datetime
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
+THERMAL = "/sys/class/thermal"
+CPU_SENSOR = "x86_pkg_temp"
+
+def read_cpu_temp(path):
+    for zone in Path(path).glob("thermal_zone*"):
+        try:
+            zone_name = (zone / "type").read_text()
+            zone_name = zone_name.strip()
+        except OSError:
+            continue
+        if zone_name == CPU_SENSOR:
+            try:
+                temp = int((zone / "temp").read_text())
+            except (ValueError, OSError):
+                continue
+            temp /= 1000
+            return temp
+    return None
+
+def check_temperature(temp, warning, critical):
+    status = get_status(temp, warning, critical)
+    detail = f"{round(temp, 1)} °C"
+    return {"name": "temperature", "status": status, "detail": detail}
 
 def get_services(config):
     services = []
@@ -206,6 +229,7 @@ def main():
         alerts = find_alerts(disks, disk_config_section)
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
+        temp_warning, temp_critical = get_thresholds(config, "temperature")
         services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
@@ -219,14 +243,24 @@ def main():
     if mem_data["status"] != "OK":
         alerts.append(mem_data)
 
-    #Checking cpu load
+    # Checking cpu load
     cpus = os.cpu_count()
     load = read_loadavg(LOADAVG)
     load_data = check_load(load, cpus, load_warning, load_critical)
     if load_data["status"] != "OK":
         alerts.append(load_data)
 
-   # Cheking services
+    # Checking temperature
+    temp = read_cpu_temp(THERMAL)
+    if temp is None:
+        temp_text = "n/a"
+    else:
+        cpu_temp = check_temperature(temp, temp_warning, temp_critical)
+        temp_text = cpu_temp['detail']
+        if cpu_temp["status"] != "OK":
+            alerts.append(cpu_temp)
+
+    # Checking services
     for service in services:
         service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
         if service_health["status"] != "OK":
@@ -235,7 +269,7 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, services ({len(services)}). Problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
         print("  " + format_alert(alert))

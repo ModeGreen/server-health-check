@@ -1,6 +1,6 @@
 # server-health-check
 
-A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system.
+A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system.
 
 Built as part of my DevOps learning path; it runs on my home server.
 
@@ -11,22 +11,23 @@ Built as part of my DevOps learning path; it runs on my home server.
 | Disk usage | `findmnt` — real disks only (`/dev/...`, no loop devices) | % used | 75% / 90% |
 | Memory | `/proc/meminfo` | % in use: `MemTotal` − `MemAvailable` | 80% / 90% |
 | CPU load | `/proc/loadavg` | 15-minute load average per CPU, % (100% = all CPUs busy) | 100% / 200% |
+| CPU temperature | `/sys/class/thermal`, sensor `x86_pkg_temp` (Intel CPUs) | °C | 85 °C / 95 °C; skipped where there is no sensor (virtual machines, WSL) |
 | Services | HTTP `GET` to each `url` from the config (`requests`, redirects are not followed) | HTTP status | 200–399 is OK; any other status or no answer within 5 s is CRITICAL |
 
 ## Example
 
 ```
 $ .venv/bin/python health_check.py; echo $?
-Checked: disks (2), memory 41.3%, load 6.3%, services (2). Problems: 2
+Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 2
   /var: 91.2% — CRITICAL
   my-app: no response (ConnectionError) — CRITICAL
 2
 ```
 
-The summary line always shows the current memory and load. Problems are also saved to `alerts.json`, and every run appends one line to `history.log`, so it doubles as a simple history of memory and load:
+The summary line always shows the current memory, load and CPU temperature (`temp n/a` if there is no sensor). Problems are also saved to `alerts.json`, and every run appends one line to `history.log`, so it doubles as a simple history of memory, load and temperature:
 
 ```
-2026-11-10 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%, services (2). Problems: 2
+2026-11-10 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 2
 ```
 
 ## Exit codes
@@ -82,6 +83,9 @@ memory:
 load:
   warning: 100
   critical: 200
+temperature:        # °C
+  warning: 85
+  critical: 95
 services:           # optional: HTTP checks
   - name: my-app
     url: http://localhost:8080/health
@@ -93,7 +97,7 @@ A missing section, bad thresholds or a bad `services` list stop the check with e
 
 - [x] Disk usage
 - [x] Memory and CPU load
-- [ ] CPU temperature
+- [x] CPU temperature
 - [x] HTTP checks for services
 - [ ] Run on a systemd timer
 - [ ] Telegram alerts on status change
