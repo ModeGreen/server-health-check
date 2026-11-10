@@ -3,8 +3,9 @@ Prints a short report, saves problems to alerts.json and appends one line per ru
 to history.log next to the script: time, host, status, result.
 
 Usage:   python3 health_check.py
-Config:  health_check.yaml next to the script, or the file from the HEALTH_CHECK_CONFIG
-         environment variable. What is checked and the thresholds: see README.md.
+Config:  health_check.yaml next to the script (a copy of health_check.example.yaml),
+         or the file from the HEALTH_CHECK_CONFIG environment variable.
+         What is checked and the thresholds: see README.md.
 Exit codes (Nagios style): 0 — OK, 1 — WARNING, 2 — CRITICAL, 3 — error.
 """
 
@@ -14,10 +15,35 @@ import sys
 from pathlib import Path
 import subprocess
 import yaml
+import requests
 from datetime import datetime
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
+HTTP_TIMEOUT = 5
+
+def get_services(config):
+    services = []
+    if "services" in config and config["services"] is not None:
+        if not isinstance(config["services"], list):
+            raise ValueError("config: services must be a list")
+        for serv in config["services"]:
+            if not isinstance(serv, dict) or not (isinstance(serv.get("name"), str) and isinstance(serv.get("url"), str)):
+                raise ValueError("config: every service needs a name and a url")
+            services.append(serv)
+    return services
+
+def check_service(name, url, timeout):
+    try:
+        r = requests.get(url, timeout=timeout, allow_redirects=False)
+    except requests.exceptions.RequestException as e:
+        return {"name": name, "status": "CRITICAL", "detail": f"no response ({e.__class__.__name__})"}
+    if 200 <= r.status_code < 400:
+        status = "OK"
+    else:
+        status = "CRITICAL"
+    detail = f"HTTP {r.status_code}"
+    return {"name": name, "status": status, "detail": detail}
 
 def read_loadavg(path):
     with open(path) as f:
@@ -138,6 +164,12 @@ def find_alerts(disks, config):
             alerts.append({"name": disk["name"], "percent": round(percent, 1), "status": status})
     return alerts
 
+def format_alert(alert):
+    if "percent" in alert:
+        return f"{alert['name']}: {alert['percent']}% — {alert['status']}"
+    else:
+        return f"{alert['name']}: {alert['detail']} — {alert['status']}"
+
 def get_exit_code(alerts):
     code = 0
     for alert in alerts:
@@ -174,6 +206,7 @@ def main():
         alerts = find_alerts(disks, disk_config_section)
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
+        services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
@@ -193,13 +226,19 @@ def main():
     if load_data["status"] != "OK":
         alerts.append(load_data)
 
+   # Cheking services
+    for service in services:
+        service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
+        if service_health["status"] != "OK":
+            alerts.append(service_health)
+
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%. Problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, services ({len(services)}). Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
-        print(f"  {alert['name']}: {alert['percent']}% — {alert['status']}")
+        print("  " + format_alert(alert))
 
     exit_code = get_exit_code(alerts)
 

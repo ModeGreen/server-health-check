@@ -1,6 +1,6 @@
 # server-health-check
 
-A small health check for a Linux server, written in Python. It checks disk usage, memory and CPU load, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system.
+A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system.
 
 Built as part of my DevOps learning path; it runs on my home server.
 
@@ -11,20 +11,22 @@ Built as part of my DevOps learning path; it runs on my home server.
 | Disk usage | `findmnt` — real disks only (`/dev/...`, no loop devices) | % used | 75% / 90% |
 | Memory | `/proc/meminfo` | % in use: `MemTotal` − `MemAvailable` | 80% / 90% |
 | CPU load | `/proc/loadavg` | 15-minute load average per CPU, % (100% = all CPUs busy) | 100% / 200% |
+| Services | HTTP `GET` to each `url` from the config (`requests`, redirects are not followed) | HTTP status | 200–399 is OK; any other status or no answer within 5 s is CRITICAL |
 
 ## Example
 
 ```
 $ .venv/bin/python health_check.py; echo $?
-Checked: disks (2), memory 41.3%, load 6.3%. Problems: 1
+Checked: disks (2), memory 41.3%, load 6.3%, services (2). Problems: 2
   /var: 91.2% — CRITICAL
+  my-app: no response (ConnectionError) — CRITICAL
 2
 ```
 
 The summary line always shows the current memory and load. Problems are also saved to `alerts.json`, and every run appends one line to `history.log`, so it doubles as a simple history of memory and load:
 
 ```
-2026-11-09 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%. Problems: 1
+2026-11-10 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%, services (2). Problems: 2
 ```
 
 ## Exit codes
@@ -43,6 +45,7 @@ git clone https://github.com/ModeGreen/server-health-check.git
 cd server-health-check
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+cp health_check.example.yaml health_check.yaml
 .venv/bin/python health_check.py; echo $?
 ```
 
@@ -50,7 +53,13 @@ Requires Linux and Python 3.
 
 ## Configuration
 
-Thresholds live in `health_check.yaml` next to the script, one section per check. Another file can be set with the `HEALTH_CHECK_CONFIG` environment variable:
+Settings live in `health_check.yaml` next to the script, one section per check. This file is not in Git: it holds the real addresses of your services. Start from the example and edit it:
+
+```bash
+cp health_check.example.yaml health_check.yaml
+```
+
+Another file can be set with the `HEALTH_CHECK_CONFIG` environment variable:
 
 ```bash
 HEALTH_CHECK_CONFIG=/etc/health_check.yaml .venv/bin/python health_check.py
@@ -73,16 +82,19 @@ memory:
 load:
   warning: 100
   critical: 200
+services:           # optional: HTTP checks
+  - name: my-app
+    url: http://localhost:8080/health
 ```
 
-A missing section or bad thresholds stop the check with exit code `3` and a clear `ERROR:` message.
+A missing section, bad thresholds or a bad `services` list stop the check with exit code `3` and a clear `ERROR:` message.
 
 ## Roadmap
 
 - [x] Disk usage
 - [x] Memory and CPU load
 - [ ] CPU temperature
-- [ ] HTTP checks for services
+- [x] HTTP checks for services
 - [ ] Run on a systemd timer
 - [ ] Telegram alerts on status change
 - [ ] CI with GitHub Actions

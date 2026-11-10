@@ -21,3 +21,10 @@ memory:
 load:
   warning: 100
   critical: 200
+
+# Optional: HTTP checks for services, a GET request to each url.
+# 200-399 is OK; any other status or no answer within 5 seconds is CRITICAL.
+# Real addresses go only into your local health_check.yaml, not into Git.
+# services:
+#   - name: my-app
+#     url: http://localhost:8080/health
