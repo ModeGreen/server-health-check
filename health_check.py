@@ -164,6 +164,12 @@ def find_alerts(disks, config):
             alerts.append({"name": disk["name"], "percent": round(percent, 1), "status": status})
     return alerts
 
+def format_alert(alert):
+    if "percent" in alert:
+        return f"{alert['name']}: {alert['percent']}% — {alert['status']}"
+    else:
+        return f"{alert['name']}: {alert['detail']} — {alert['status']}"
+
 def get_exit_code(alerts):
     code = 0
     for alert in alerts:
@@ -195,6 +201,7 @@ def main():
         return 3
 
     try:
+        services = get_services(config)
         disk_config_section = get_section(config, "disk")
         disks = remove_ignored(disks, disk_config_section)
         alerts = find_alerts(disks, disk_config_section)
@@ -219,13 +226,19 @@ def main():
     if load_data["status"] != "OK":
         alerts.append(load_data)
 
+    # Cheking services
+    for service in services:
+        service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
+        if service_health["status"] != "OK":
+            alerts.append(service_health)
+
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%. Problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, services ({len(services)}). Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
-        print(f"  {alert['name']}: {alert['percent']}% — {alert['status']}")
+        print("  " + format_alert(alert))
 
     exit_code = get_exit_code(alerts)
 
