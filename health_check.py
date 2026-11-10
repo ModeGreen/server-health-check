@@ -229,6 +229,7 @@ def main():
         alerts = find_alerts(disks, disk_config_section)
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
+        temp_warning, temp_critical = get_thresholds(config, "temperature")
         services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
@@ -242,14 +243,23 @@ def main():
     if mem_data["status"] != "OK":
         alerts.append(mem_data)
 
-    #Checking cpu load
+    # Checking cpu load
     cpus = os.cpu_count()
     load = read_loadavg(LOADAVG)
     load_data = check_load(load, cpus, load_warning, load_critical)
     if load_data["status"] != "OK":
         alerts.append(load_data)
 
-   # Cheking services
+    # Checking temperature
+    temp = read_cpu_temp(THERMAL)
+    if temp is None:
+        cpu_temp = {"detail":"n/a"}
+    else:
+        cpu_temp = check_temperature(temp, temp_warning, temp_critical)
+        if cpu_temp["status"] != "OK":
+            alerts.append(cpu_temp)
+
+    # Checking services
     for service in services:
         service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
         if service_health["status"] != "OK":
@@ -258,7 +268,7 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, services ({len(services)}). Problems: {len(alerts)}"
+    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {cpu_temp['detail']}, services ({len(services)}). Problems: {len(alerts)}"
     print(output_text)
     for alert in alerts:
         print("  " + format_alert(alert))
