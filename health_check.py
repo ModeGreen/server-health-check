@@ -15,10 +15,24 @@ import sys
 from pathlib import Path
 import subprocess
 import yaml
+import requests
 from datetime import datetime
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
+HTTP_TIMEOUT = 5
+
+def check_service(name, url, timeout):
+    try:
+        r = requests.get(url, timeout = timeout, allow_redirects=False)
+    except requests.exceptions.RequestException as e:
+        return {"name": name, "status": "CRITICAL", "detail": f"no response ({e.__class__.__name__})"}
+    if 200 <= r.status_code < 400:
+        status = "OK"
+    else:
+        status = "CRITICAL"
+    detail = f"HTTP {r.status_code}"
+    return {"name": name, "status": status, "detail": detail}
 
 def read_loadavg(path):
     with open(path) as f:
