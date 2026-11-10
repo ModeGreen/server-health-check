@@ -40,6 +40,11 @@ def read_cpu_temp(path):
             return temp
     return None
 
+def check_temperature(temp, warning, critical):
+    status = get_status(temp, warning, critical)
+    detail = f"{temp} °C"
+    return {"name": "temperature", "status": status, "detail": detail}
+
 def get_services(config):
     services = []
     if "services" in config and config["services"] is not None:
