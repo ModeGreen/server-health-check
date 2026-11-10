@@ -21,6 +21,24 @@ from datetime import datetime
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
+THERMAL = "/sys/class/thermal"
+CPU_SENSOR = "x86_pkg_temp"
+
+def read_cpu_temp(path):
+    for zone in Path(path).glob("thermal_zone*"):
+        try:
+            zone_name = Path.read_text(zone/"type")
+            zone_name = zone_name.strip()
+        except OSError:
+            continue
+        if zone_name == CPU_SENSOR:
+            try:
+                temp = int(Path.read_text(zone/"temp"))
+            except ValueError, OSError:
+                continue
+            temp /= 1000
+            return temp
+    return None
 
 def get_services(config):
     services = []
