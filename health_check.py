@@ -22,6 +22,17 @@ MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
 
+def get_services(config):
+    services = []
+    if "services" in config and config["services"] != None:
+        if not isinstance(config["services"], list):
+            raise ValueError("config: services must be a list")
+        for serv in config["services"]:
+            if not isinstance(serv, dict) or not (isinstance(serv.get("name"), str) and isinstance(serv.get("url"), str)):
+                raise ValueError("config: every service needs a name and a url")
+            services.append(serv)
+    return services
+
 def check_service(name, url, timeout):
     try:
         r = requests.get(url, timeout = timeout, allow_redirects=False)
