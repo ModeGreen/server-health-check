@@ -3,7 +3,7 @@ Prints a short report, saves problems to alerts.json and appends one line per ru
 to history.log next to the script: time, host, status, result.
 
 Usage:   python3 health_check.py
-CConfig:  health_check.yaml next to the script (a copy of health_check.example.yaml),
+Config:  health_check.yaml next to the script (a copy of health_check.example.yaml),
          or the file from the HEALTH_CHECK_CONFIG environment variable.
          What is checked and the thresholds: see README.md.
 Exit codes (Nagios style): 0 — OK, 1 — WARNING, 2 — CRITICAL, 3 — error.
@@ -24,7 +24,7 @@ HTTP_TIMEOUT = 5
 
 def get_services(config):
     services = []
-    if "services" in config and config["services"] != None:
+    if "services" in config and config["services"] is not None:
         if not isinstance(config["services"], list):
             raise ValueError("config: services must be a list")
         for serv in config["services"]:
@@ -35,7 +35,7 @@ def get_services(config):
 
 def check_service(name, url, timeout):
     try:
-        r = requests.get(url, timeout = timeout, allow_redirects=False)
+        r = requests.get(url, timeout=timeout, allow_redirects=False)
     except requests.exceptions.RequestException as e:
         return {"name": name, "status": "CRITICAL", "detail": f"no response ({e.__class__.__name__})"}
     if 200 <= r.status_code < 400:
@@ -201,12 +201,12 @@ def main():
         return 3
 
     try:
-        services = get_services(config)
         disk_config_section = get_section(config, "disk")
         disks = remove_ignored(disks, disk_config_section)
         alerts = find_alerts(disks, disk_config_section)
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
+        services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
         print(message, file=sys.stderr)
@@ -226,7 +226,7 @@ def main():
     if load_data["status"] != "OK":
         alerts.append(load_data)
 
-    # Cheking services
+   # Cheking services
     for service in services:
         service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
         if service_health["status"] != "OK":
