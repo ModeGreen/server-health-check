@@ -93,13 +93,32 @@ services:           # optional: HTTP checks
 
 A missing section, bad thresholds or a bad `services` list stop the check with exit code `3` and a clear `ERROR:` message.
 
+## Run on a systemd timer
+
+The `systemd/` folder has a user service and a timer that run the check every 5 minutes. Install them for your user — no root needed, except for `enable-linger`:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/server-health-check.service systemd/server-health-check.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now server-health-check.timer
+sudo loginctl enable-linger $USER    # keep the timer running after you log out
+```
+
+The service expects the project in `~/server-health-check` and the config in `~/.config/server-health-check/health_check.yaml`. Exit codes 1 and 2 (WARNING and CRITICAL) count as a successful run; exit code 3 (the check itself failed) marks the service as failed, so it shows up in `systemctl --user --failed`.
+
+```bash
+systemctl --user list-timers                  # when the next run is
+journalctl --user -u server-health-check      # the output of every run
+```
+
 ## Roadmap
 
 - [x] Disk usage
 - [x] Memory and CPU load
 - [x] CPU temperature
 - [x] HTTP checks for services
-- [ ] Run on a systemd timer
+- [x] Run on a systemd timer
 - [ ] Telegram alerts on status change
 - [ ] CI with GitHub Actions
 
