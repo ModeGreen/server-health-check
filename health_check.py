@@ -3,8 +3,9 @@ Prints a short report, saves problems to alerts.json and appends one line per ru
 to history.log next to the script: time, host, status, result.
 
 Usage:   python3 health_check.py
-Config:  health_check.yaml next to the script, or the file from the HEALTH_CHECK_CONFIG
-         environment variable. What is checked and the thresholds: see README.md.
+CConfig:  health_check.yaml next to the script (a copy of health_check.example.yaml),
+         or the file from the HEALTH_CHECK_CONFIG environment variable.
+         What is checked and the thresholds: see README.md.
 Exit codes (Nagios style): 0 — OK, 1 — WARNING, 2 — CRITICAL, 3 — error.
 """
 
