@@ -26,6 +26,24 @@ LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
+POWER_SUPPLY = "/sys/class/power_supply"
+
+def check_battery(capacity, state, warning, critical):
+    status = get_low_status(capacity, warning, critical)
+    detail = f"{capacity}% ({state})"
+    return {"name": "battery", "status": status, "detail": detail}
+
+def read_battery(path):
+    for power_supply in sorted(Path(path).glob("*")):
+        try:
+            supply_type = (power_supply / "type").read_text().strip()
+            if supply_type == "Battery":
+                supply_capacity = int((power_supply / "capacity").read_text().strip())
+                supply_status = (power_supply / "status").read_text().strip()
+                return supply_capacity, supply_status
+        except (ValueError, OSError):
+            continue
+    return None
 
 def make_message(host, old_status, new_status, report):
     message = f"[{host}] {new_status} (was {old_status})\n{report}"
@@ -172,14 +190,18 @@ def get_section(config, name):
         raise ValueError(f"config: section '{name}' is missing")
     return config[name]
 
-def get_thresholds(config, name):
+def get_thresholds(config, name, low = False):
     section = get_section(config, name)
     warning = section.get("warning")
     critical = section.get("critical")
     if type(warning) != int or type(critical) != int:
         raise ValueError(f"{name}: warning and critical must be integers")
-    if not critical > warning:
-        raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    if low == False:
+        if not critical > warning:
+            raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    else:
+        if not critical < warning:
+            raise ValueError(f"{name}: warning ({warning}) must be greater than critical ({critical})")
     return warning, critical
 
 def get_disk_thresholds(name, config):
@@ -199,6 +221,13 @@ def get_status(percent, warning, critical):
     if percent >= critical:
         return "CRITICAL"
     if percent >= warning:
+        return "WARNING"
+    return "OK"
+
+def get_low_status(percent, warning, critical):
+    if percent <= critical:
+        return "CRITICAL"
+    if percent <= warning:
         return "WARNING"
     return "OK"
 
@@ -255,6 +284,7 @@ def main():
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
         temp_warning, temp_critical = get_thresholds(config, "temperature")
+        battery_warning, battery_critical = get_thresholds(config, "battery", low=True)
         services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
@@ -285,6 +315,17 @@ def main():
         if cpu_temp["status"] != "OK":
             alerts.append(cpu_temp)
 
+    # Checking battery 
+    battery_info = read_battery(POWER_SUPPLY)
+    if battery_info is None:
+        battery_report_detail = "n/a"
+    else:
+        bat_capacity, bat_status = battery_info
+        battery_report = check_battery(bat_capacity, bat_status, battery_warning, battery_critical)
+        battery_report_detail = battery_report['detail']
+        if battery_report["status"] != "OK":
+            alerts.append(battery_report)
+
     # Checking services
     for service in services:
         service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
@@ -294,7 +335,7 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
+    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, battery {battery_report_detail}, services ({len(services)}). Problems: {len(alerts)}"
     history_report = report
     for alert in alerts:
         report+= ("\n  " + format_alert(alert))
