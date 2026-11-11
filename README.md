@@ -1,6 +1,6 @@
 # server-health-check
 
-A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system. When the status changes, it sends an alert to Telegram.
+A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature, laptop battery charge and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system. When the status changes, it sends an alert to Telegram.
 
 Built as part of my DevOps learning path; it runs on my home server.
 
@@ -12,22 +12,23 @@ Built as part of my DevOps learning path; it runs on my home server.
 | Memory | `/proc/meminfo` | % in use: `MemTotal` − `MemAvailable` | 80% / 90% |
 | CPU load | `/proc/loadavg` | 15-minute load average per CPU, % (100% = all CPUs busy) | 100% / 200% |
 | CPU temperature | `/sys/class/thermal`, sensor `x86_pkg_temp` (Intel CPUs) | °C | 85 °C / 95 °C; skipped where there is no sensor (virtual machines, WSL) |
+| Laptop battery | `/sys/class/power_supply`, the supply with `type` = `Battery` | charge, %, with the charging status next to it | 20% / 10%, lower is worse; skipped where there is no battery |
 | Services | HTTP `GET` to each `url` from the config (`requests`, redirects are not followed) | HTTP status | 200–399 is OK; any other status or no answer within 5 s is CRITICAL |
 
 ## Example
 
 ```
 $ .venv/bin/python health_check.py; echo $?
-Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 2
+Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, battery 87% (Charging), services (2). Problems: 2
   /var: 91.2% — CRITICAL
   my-app: no response (ConnectionError) — CRITICAL
 2
 ```
 
-The summary line always shows the current memory, load and CPU temperature (`temp n/a` if there is no sensor). Problems are also saved to `alerts.json`, and every run appends one line to `history.log`, so it doubles as a simple history of memory, load and temperature:
+The summary line always shows the current memory, load, CPU temperature and battery charge (`n/a` if there is no sensor or no battery). Problems are also saved to `alerts.json`, and every run appends one line to `history.log`, so it doubles as a simple history of memory, load, temperature and battery charge:
 
 ```
-2026-11-10 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 2
+2026-11-10 14:00:02 home-server CRITICAL Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, battery 87% (Charging), services (2). Problems: 2
 ```
 
 ## Exit codes
@@ -86,6 +87,9 @@ load:
 temperature:        # °C
   warning: 85
   critical: 95
+battery:            # %, lower is worse: warning > critical
+  warning: 20
+  critical: 10
 services:           # optional: HTTP checks
   - name: my-app
     url: http://localhost:8080/health
@@ -157,7 +161,7 @@ When the status changes — for example from OK to CRITICAL, or back to OK — t
 
 ```
 [home-server] CRITICAL (was OK)
-Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 1
+Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, battery 87% (Charging), services (2). Problems: 1
   /var: 91.2% — CRITICAL
 ```
 
@@ -174,12 +178,12 @@ journalctl --user -u server-health-check -n 5
 
 If the check itself fails (exit code 3), no alert is sent; the service then shows up in `systemctl --user --failed`.
 
-
 ## Roadmap
 
 - [x] Disk usage
 - [x] Memory and CPU load
 - [x] CPU temperature
+- [x] Laptop battery charge
 - [x] HTTP checks for services
 - [x] Run on a systemd timer
 - [x] Telegram alerts on status change

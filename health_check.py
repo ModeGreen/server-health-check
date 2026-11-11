@@ -284,6 +284,7 @@ def main():
         mem_warning, mem_critical = get_thresholds(config, "memory")
         load_warning, load_critical = get_thresholds(config, "load")
         temp_warning, temp_critical = get_thresholds(config, "temperature")
+        battery_warning, battery_critical = get_thresholds(config, "battery", low=True)
         services = get_services(config)
     except ValueError as e:
         message = f"ERROR: {e}"
@@ -314,6 +315,17 @@ def main():
         if cpu_temp["status"] != "OK":
             alerts.append(cpu_temp)
 
+    # Checking battery 
+    battery_info = read_battery(POWER_SUPPLY)
+    if battery_info is None:
+        battery_report_detail = "n/a"
+    else:
+        bat_capacity, bat_status = battery_info
+        battery_report = check_battery(bat_capacity, bat_status, battery_warning, battery_critical)
+        battery_report_detail = battery_report['detail']
+        if battery_report["status"] != "OK":
+            alerts.append(battery_report)
+
     # Checking services
     for service in services:
         service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
@@ -323,7 +335,7 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
+    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, battery {battery_report_detail}, services ({len(services)}). Problems: {len(alerts)}"
     history_report = report
     for alert in alerts:
         report+= ("\n  " + format_alert(alert))
