@@ -1,6 +1,8 @@
 """health_check.py — a health check for a Linux server.
 Prints a short report, saves problems to alerts.json and appends one line per run
 to history.log next to the script: time, host, status, result.
+When the status changes, sends a Telegram message (if TELEGRAM_BOT_TOKEN and
+TELEGRAM_CHAT_ID are set) and keeps the last status in last_status next to the script.
 
 Usage:   python3 health_check.py
 Config:  health_check.yaml next to the script (a copy of health_check.example.yaml),
