@@ -24,6 +24,20 @@ HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 
+def read_last_status(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            last_status = f.read().strip()
+    except OSError:
+        last_status = "OK"
+    if last_status not in ("OK", "WARNING", "CRITICAL"):
+        last_status = "OK"
+    return last_status
+
+def write_last_status(path, status):
+    Path(path).write_text(status + "\n", encoding="utf-8")
+    return
+
 def read_cpu_temp(path):
     for zone in Path(path).glob("thermal_zone*"):
         try:
