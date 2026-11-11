@@ -11,6 +11,7 @@ Config:  health_check.yaml next to the script (a copy of health_check.example.ya
 Exit codes (Nagios style): 0 — OK, 1 — WARNING, 2 — CRITICAL, 3 — error.
 """
 
+import html
 import json
 import os
 import sys
@@ -27,6 +28,7 @@ HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 POWER_SUPPLY = "/sys/class/power_supply"
+STATUS_EMOJI = {"OK": "🟢", "WARNING": "🟡", "CRITICAL": "🔴"}
 
 def check_battery(capacity, state, warning, critical):
     status = get_low_status(capacity, warning, critical)
@@ -45,9 +47,28 @@ def read_battery(path):
             continue
     return None
 
-def make_message(host, old_status, new_status, report):
-    message = f"[{host}] {new_status} (was {old_status})\n{report}"
-    return message
+def make_message(host, old_status, new_status, alerts, summary):
+    lines = [f"{STATUS_EMOJI[new_status]} <b>{new_status}</b> · <code>{html.escape(host)}</code>",
+             f"<i>was {old_status}</i>",
+             ""]
+    if alerts:
+        problems = []
+        for alert in alerts:
+            if "percent" in alert:
+                value = f"{alert['percent']}%"
+            else:
+                value = alert["detail"]
+            problems.append(f"{STATUS_EMOJI[alert['status']]} {html.escape(alert['name'])}: <b>{html.escape(value)}</b>")
+        lines.append("<b>Problems:</b>")
+        lines.append("<blockquote>" + "\n".join(problems) + "</blockquote>")
+    else:
+        lines.append("<blockquote>✅ All checks passed</blockquote>")
+    lines.append("")
+    details = []
+    for label, value in summary.items():
+        details.append(f"{label}: <b>{html.escape(value)}</b>")
+    lines.append("<blockquote>" + "\n".join(details) + "</blockquote>")
+    return "\n".join(lines)
 
 def get_hostname():
     hostname = subprocess.run(["hostname"], capture_output=True, text=True)
@@ -352,13 +373,22 @@ def main():
 
     write_history(journal, status, history_report)
 
+    summary = {
+        "💾 Disks": str(len(disks)),
+        "🧠 Memory": f"{mem_data['percent']}%",
+        "⚙️ Load": f"{load_data['percent']}%",
+        "🌡 Temperature": temp_text,
+        "🔋 Battery": battery_report_detail,
+        "🌐 Services": str(len(services)),
+    }
+
     last_status_path = script_dir/"last_status"
     last_status = read_last_status(last_status_path)
     if status != last_status:
         token, chat_id = get_token_and_id()
         if token and chat_id:
             try:
-                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, report), TELEGRAM_TIMEOUT)
+                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, alerts, summary), TELEGRAM_TIMEOUT, parse_mode="HTML")
             except RuntimeError as e:
                 print(f"ERROR: {e}", file=sys.stderr)
                 return exit_code

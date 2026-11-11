@@ -160,10 +160,21 @@ The token is part of the request URL, so error messages show only the HTTP statu
 When the status changes — for example from OK to CRITICAL, or back to OK — the check sends one message to Telegram:
 
 ```
-[home-server] CRITICAL (was OK)
-Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, battery 87% (Charging), services (2). Problems: 1
-  /var: 91.2% — CRITICAL
+🔴 CRITICAL · home-server
+was OK
+
+Problems:
+┃ 🔴 /var: 91.2%
+
+┃ 💾 Disks: 2
+┃ 🧠 Memory: 41.3%
+┃ ⚙️ Load: 6.3%
+┃ 🌡 Temperature: 47.0 °C
+┃ 🔋 Battery: 87% (Charging)
+┃ 🌐 Services: 2
 ```
+
+The message is sent with Telegram's HTML formatting (`parse_mode` `HTML`): the status and the values are bold, the problems are a block quote under the "Problems:" title, and the summary of all checks is a second block quote. When the status is back to OK, the first block says "All checks passed". Names and values are escaped, so a `<`, `>` or `&` in a service name can't break the message.
 
 While the status stays the same, nothing is sent, so a long problem does not flood the chat. The last status is kept in `last_status` next to the script. If Telegram does not answer, the check prints an `ERROR:` line and keeps the old status, so it tries again on the next run.
 
