@@ -13,8 +13,10 @@ import requests
 TELEGRAM_API = "https://api.telegram.org"
 TELEGRAM_TIMEOUT = 10
 
-def send_telegram(token, chat_id, text, timeout):
+def send_telegram(token, chat_id, text, timeout, parse_mode=None):
     payload = {"chat_id": chat_id, "text": text}
+    if parse_mode is not None:
+        payload["parse_mode"] = parse_mode
     try:
         r = requests.post(f'{TELEGRAM_API}/bot{token}/sendMessage', json=payload, timeout=timeout)
     except requests.exceptions.RequestException as e:

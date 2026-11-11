@@ -11,6 +11,7 @@ Config:  health_check.yaml next to the script (a copy of health_check.example.ya
 Exit codes (Nagios style): 0 — OK, 1 — WARNING, 2 — CRITICAL, 3 — error.
 """
 
+import html
 import json
 import os
 import sys
@@ -27,6 +28,7 @@ HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 POWER_SUPPLY = "/sys/class/power_supply"
+STATUS_EMOJI = {"OK": "🟢", "WARNING": "🟡", "CRITICAL": "🔴"}
 
 def check_battery(capacity, state, warning, critical):
     status = get_low_status(capacity, warning, critical)
