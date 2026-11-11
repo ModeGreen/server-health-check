@@ -112,6 +112,45 @@ systemctl --user list-timers                  # when the next run is
 journalctl --user -u server-health-check      # the output of every run
 ```
 
+## Send a message to Telegram
+
+`telegram_notify.py` sends a text message from your Telegram bot. The health check will use it for alerts; it also works on its own, for example at the end of a backup script.
+
+**1. Create a bot.** Send `/newbot` to [@BotFather](https://t.me/BotFather) in Telegram, pick a name and a username, and keep the token it gives you. Then open your bot and press **Start**: a bot can't write to you first.
+
+**2. Keep the token out of Git** — in a file outside the repository that only you can read:
+
+```bash
+mkdir -p ~/.config/server-health-check
+cp telegram.env.example ~/.config/server-health-check/telegram.env
+chmod 600 ~/.config/server-health-check/telegram.env
+nano ~/.config/server-health-check/telegram.env    # put in your token
+```
+
+**3. Find your chat ID** — `"chat": {"id": ...}` in the messages your bot has received:
+
+```bash
+set -a; source ~/.config/server-health-check/telegram.env; set +a
+curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates" | python3 -m json.tool
+```
+
+Put it into `TELEGRAM_CHAT_ID` in the same file.
+
+**4. Send a message:**
+
+```bash
+set -a; source ~/.config/server-health-check/telegram.env; set +a
+.venv/bin/python telegram_notify.py "Hello from my server"; echo $?
+```
+
+| Code | Meaning |
+|---|---|
+| 0 | Sent |
+| 1 | Not sent: no answer from Telegram, or Telegram refused the request (wrong token or chat ID) |
+| 2 | Wrong usage: no text, or the variables are not set |
+
+The token is part of the request URL, so error messages show only the HTTP status or the error type, never the URL. If the token leaks anyway, send `/revoke` to @BotFather to get a new one.
+
 ## Roadmap
 
 - [x] Disk usage

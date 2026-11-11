@@ -22,3 +22,30 @@ def send_telegram(token, chat_id, text, timeout):
     if r.status_code != 200:
         raise RuntimeError(f"Telegram: HTTP {r.status_code}")
     return
+
+def main():
+
+    if len(sys.argv) != 2:
+        print ("Usage: telegram_notify.py <text>", file=sys.stderr)
+        return 2
+
+    text = sys.argv[1]
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    if (not token) or (not chat_id):
+        print ("ERROR: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID", file=sys.stderr)
+        return 2
+
+    try:
+        send_telegram(token, chat_id, text, TELEGRAM_TIMEOUT )
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+
+    print('Sent')
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
