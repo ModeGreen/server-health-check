@@ -23,6 +23,12 @@ def send_telegram(token, chat_id, text, timeout):
         raise RuntimeError(f"Telegram: HTTP {r.status_code}")
     return
 
+def get_token_and_id():
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    return token, chat_id
+
+
 def main():
 
     if len(sys.argv) != 2:
@@ -31,8 +37,7 @@ def main():
 
     text = sys.argv[1]
 
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    token, chat_id = get_token_and_id()
 
     if (not token) or (not chat_id):
         print ("ERROR: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID", file=sys.stderr)
