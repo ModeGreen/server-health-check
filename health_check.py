@@ -24,6 +24,14 @@ HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 
+def make_message(host, old_status, new_status, report):
+    message = f"[{host}] {new_status} (was {old_status})\n{report}"
+    return message
+
+def get_hostname():
+    hostname = subprocess.run(["hostname"], capture_output=True, text=True)
+    return hostname.stdout.strip()
+
 def read_last_status(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -115,8 +123,8 @@ def make_history_line(now, host, status, text):
     return f"{now.strftime('%Y-%m-%d %H:%M:%S')} {host} {status} {text}"
 
 def write_history(path, status, text):
-    host = subprocess.run(["hostname"], capture_output=True, text=True)
-    log_line = make_history_line(datetime.now(), host.stdout.strip() , status, text)
+    host = get_hostname()
+    log_line = make_history_line(datetime.now(), host, status, text)
     with open(path, "a", encoding="utf-8") as f:
         print(log_line, file=f)
     return
