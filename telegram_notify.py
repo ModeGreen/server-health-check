@@ -16,7 +16,7 @@ TELEGRAM_TIMEOUT = 10
 def send_telegram(token, chat_id, text, timeout):
     payload = {"chat_id": chat_id, "text": text}
     try:
-        r = requests.post(TELEGRAM_API/token/sendMessage, json=payload, timeout=timeout)
+        r = requests.post(f'{TELEGRAM_API}/{token}/sendMessage', json=payload, timeout=timeout)
     except requests.exceptions.RequestException:
         raise RuntimeError("Telegram: no response (ConnectionError)")
     if r.status_code != 200:
