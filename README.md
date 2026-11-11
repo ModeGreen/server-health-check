@@ -163,6 +163,7 @@ When the status changes — for example from OK to CRITICAL, or back to OK — t
 🔴 CRITICAL · home-server
 was OK
 
+Problems:
 ┃ 🔴 /var: 91.2%
 
 ┃ 💾 Disks: 2
