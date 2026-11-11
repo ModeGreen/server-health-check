@@ -28,6 +28,11 @@ THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 POWER_SUPPLY = "/sys/class/power_supply"
 
+def check_battery(capacity, state, warning, critical):
+    status = get_low_status(capacity, warning, critical)
+    detail = f"{capacity}% ({state})"
+    return {"name": "battery", "status": status, "detail": detail}
+
 def read_battery(path):
     for power_supply in sorted(Path(path).glob("*")):
         try:
@@ -185,14 +190,18 @@ def get_section(config, name):
         raise ValueError(f"config: section '{name}' is missing")
     return config[name]
 
-def get_thresholds(config, name):
+def get_thresholds(config, name, low = False):
     section = get_section(config, name)
     warning = section.get("warning")
     critical = section.get("critical")
     if type(warning) != int or type(critical) != int:
         raise ValueError(f"{name}: warning and critical must be integers")
-    if not critical > warning:
-        raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    if low == False:
+        if not critical > warning:
+            raise ValueError(f"{name}: warning ({warning}) must be less than critical ({critical})")
+    else:
+        if not critical < warning:
+            raise ValueError(f"{name}: warning ({warning}) must be greater than critical ({critical})")
     return warning, critical
 
 def get_disk_thresholds(name, config):
@@ -212,6 +221,13 @@ def get_status(percent, warning, critical):
     if percent >= critical:
         return "CRITICAL"
     if percent >= warning:
+        return "WARNING"
+    return "OK"
+
+def get_low_status(percent, warning, critical):
+    if percent <= critical:
+        return "CRITICAL"
+    if percent <= warning:
         return "WARNING"
     return "OK"
 
