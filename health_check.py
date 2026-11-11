@@ -48,21 +48,25 @@ def read_battery(path):
     return None
 
 def make_message(host, old_status, new_status, alerts, summary):
-    lines = [f"{STATUS_EMOJI[new_status]} <b>{new_status}</b> · {html.escape(host)}",
-             f"was {STATUS_EMOJI[old_status]} {old_status}"]
+    lines = [f"{STATUS_EMOJI[new_status]} <b>{new_status}</b> · <code>{html.escape(host)}</code>",
+             f"<i>was {old_status}</i>",
+             ""]
     if alerts:
-        lines.append("")
-        lines.append("<b>Problems</b>")
+        problems = []
         for alert in alerts:
             if "percent" in alert:
                 value = f"{alert['percent']}%"
             else:
                 value = alert["detail"]
-            lines.append(f"{STATUS_EMOJI[alert['status']]} {html.escape(alert['name'])}: {html.escape(value)}")
+            problems.append(f"{STATUS_EMOJI[alert['status']]} {html.escape(alert['name'])}: <b>{html.escape(value)}</b>")
+        lines.append("<blockquote>" + "\n".join(problems) + "</blockquote>")
+    else:
+        lines.append("<blockquote>✅ All checks passed</blockquote>")
     lines.append("")
-    lines.append("<b>Checked</b>")
+    details = []
     for label, value in summary.items():
-        lines.append(f"{label}: {html.escape(value)}")
+        details.append(f"{label}: <b>{html.escape(value)}</b>")
+    lines.append("<blockquote expandable>" + "\n".join(details) + "</blockquote>")
     return "\n".join(lines)
 
 def get_hostname():
@@ -369,12 +373,12 @@ def main():
     write_history(journal, status, history_report)
 
     summary = {
-        "Disks": str(len(disks)),
-        "Memory": f"{mem_data['percent']}%",
-        "Load": f"{load_data['percent']}%",
-        "Temperature": temp_text,
-        "Battery": battery_report_detail,
-        "Services": str(len(services)),
+        "💾 Disks": str(len(disks)),
+        "🧠 Memory": f"{mem_data['percent']}%",
+        "⚙️ Load": f"{load_data['percent']}%",
+        "🌡 Temperature": temp_text,
+        "🔋 Battery": battery_report_detail,
+        "🌐 Services": str(len(services)),
     }
 
     last_status_path = script_dir/"last_status"

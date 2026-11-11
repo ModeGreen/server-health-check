@@ -161,21 +161,19 @@ When the status changes — for example from OK to CRITICAL, or back to OK — t
 
 ```
 🔴 CRITICAL · home-server
-was 🟢 OK
+was OK
 
-Problems
-🔴 /var: 91.2%
+┃ 🔴 /var: 91.2%
 
-Checked
-Disks: 2
-Memory: 41.3%
-Load: 6.3%
-Temperature: 47.0 °C
-Battery: 87% (Charging)
-Services: 2
+┃ 💾 Disks: 2
+┃ 🧠 Memory: 41.3%
+┃ ⚙️ Load: 6.3%
+┃ 🌡 Temperature: 47.0 °C
+┃ 🔋 Battery: 87% (Charging)
+┃ 🌐 Services: 2
 ```
 
-The new status and the section titles are bold: the message is sent with Telegram's HTML formatting (`parse_mode` `HTML`). Names and values are escaped, so a `<`, `>` or `&` in a service name can't break the message.
+The message is sent with Telegram's HTML formatting (`parse_mode` `HTML`): the status and the values are bold, the problems are a block quote, and the summary of all checks is an expandable block quote, folded by default. When the status is back to OK, the first block says "All checks passed". Names and values are escaped, so a `<`, `>` or `&` in a service name can't break the message.
 
 While the status stays the same, nothing is sent, so a long problem does not flood the chat. The last status is kept in `last_status` next to the script. If Telegram does not answer, the check prints an `ERROR:` line and keeps the old status, so it tries again on the next run.
 
