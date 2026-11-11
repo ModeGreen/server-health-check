@@ -26,6 +26,19 @@ LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
+POWER_SUPPLY = "/sys/class/power_supply"
+
+def read_battery(path):
+    for power_supply in sorted(Path(path).glob("*")):
+        try:
+            supply_type = (power_supply / "type").read_text().strip()
+            if supply_type == "Battery":
+                supply_capacity = int((power_supply / "capacity").read_text().strip())
+                supply_status = (power_supply / "status").read_text().strip()
+                return supply_capacity, supply_status
+        except (ValueError, OSError):
+            continue
+    return None
 
 def make_message(host, old_status, new_status, report):
     message = f"[{host}] {new_status} (was {old_status})\n{report}"
