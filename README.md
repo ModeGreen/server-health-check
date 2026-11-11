@@ -1,6 +1,6 @@
 # server-health-check
 
-A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system.
+A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system. When the status changes, it sends an alert to Telegram.
 
 Built as part of my DevOps learning path; it runs on my home server.
 
@@ -151,6 +151,30 @@ set -a; source ~/.config/server-health-check/telegram.env; set +a
 
 The token is part of the request URL, so error messages show only the HTTP status or the error type, never the URL. If the token leaks anyway, send `/revoke` to @BotFather to get a new one.
 
+## Telegram alerts
+
+When the status changes — for example from OK to CRITICAL, or back to OK — the check sends one message to Telegram:
+
+```
+[home-server] CRITICAL (was OK)
+Checked: disks (2), memory 41.3%, load 6.3%, temp 47.0 °C, services (2). Problems: 1
+  /var: 91.2% — CRITICAL
+```
+
+While the status stays the same, nothing is sent, so a long problem does not flood the chat. The last status is kept in `last_status` next to the script. If Telegram does not answer, the check prints an `ERROR:` line and keeps the old status, so it tries again on the next run.
+
+Alerts are on when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set (see the section above). The systemd service reads them from `~/.config/server-health-check/telegram.env`; without that file the check runs as before, just without alerts.
+
+To test the whole chain, set a low memory threshold in your config (for example `warning: 1`), run the service and wait for the message. Then put the threshold back and run it again — the next message says the status is OK again:
+
+```bash
+systemctl --user start server-health-check.service
+journalctl --user -u server-health-check -n 5
+```
+
+If the check itself fails (exit code 3), no alert is sent; the service then shows up in `systemctl --user --failed`.
+
+
 ## Roadmap
 
 - [x] Disk usage
@@ -158,7 +182,7 @@ The token is part of the request URL, so error messages show only the HTTP statu
 - [x] CPU temperature
 - [x] HTTP checks for services
 - [x] Run on a systemd timer
-- [ ] Telegram alerts on status change
+- [x] Telegram alerts on status change
 - [ ] CI with GitHub Actions
 
 ## License
