@@ -47,9 +47,23 @@ def read_battery(path):
             continue
     return None
 
-def make_message(host, old_status, new_status, report):
-    message = f"[{host}] {new_status} (was {old_status})\n{report}"
-    return message
+def make_message(host, old_status, new_status, alerts, summary):
+    lines = [f"{STATUS_EMOJI[new_status]} <b>{new_status}</b> · {html.escape(host)}",
+             f"was {STATUS_EMOJI[old_status]} {old_status}"]
+    if alerts:
+        lines.append("")
+        lines.append("<b>Problems</b>")
+        for alert in alerts:
+            if "percent" in alert:
+                value = f"{alert['percent']}%"
+            else:
+                value = alert["detail"]
+            lines.append(f"{STATUS_EMOJI[alert['status']]} {html.escape(alert['name'])}: {html.escape(value)}")
+    lines.append("")
+    lines.append("<b>Checked</b>")
+    for label, value in summary.items():
+        lines.append(f"{label}: {html.escape(value)}")
+    return "\n".join(lines)
 
 def get_hostname():
     hostname = subprocess.run(["hostname"], capture_output=True, text=True)
@@ -354,13 +368,22 @@ def main():
 
     write_history(journal, status, history_report)
 
+    summary = {
+        "Disks": str(len(disks)),
+        "Memory": f"{mem_data['percent']}%",
+        "Load": f"{load_data['percent']}%",
+        "Temperature": temp_text,
+        "Battery": battery_report_detail,
+        "Services": str(len(services)),
+    }
+
     last_status_path = script_dir/"last_status"
     last_status = read_last_status(last_status_path)
     if status != last_status:
         token, chat_id = get_token_and_id()
         if token and chat_id:
             try:
-                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, report), TELEGRAM_TIMEOUT)
+                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, alerts, summary), TELEGRAM_TIMEOUT, parse_mode="HTML")
             except RuntimeError as e:
                 print(f"ERROR: {e}", file=sys.stderr)
                 return exit_code
