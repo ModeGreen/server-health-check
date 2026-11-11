@@ -59,6 +59,7 @@ def make_message(host, old_status, new_status, alerts, summary):
             else:
                 value = alert["detail"]
             problems.append(f"{STATUS_EMOJI[alert['status']]} {html.escape(alert['name'])}: <b>{html.escape(value)}</b>")
+        lines.append("<b>Problems:</b>")
         lines.append("<blockquote>" + "\n".join(problems) + "</blockquote>")
     else:
         lines.append("<blockquote>✅ All checks passed</blockquote>")
@@ -66,7 +67,7 @@ def make_message(host, old_status, new_status, alerts, summary):
     details = []
     for label, value in summary.items():
         details.append(f"{label}: <b>{html.escape(value)}</b>")
-    lines.append("<blockquote expandable>" + "\n".join(details) + "</blockquote>")
+    lines.append("<blockquote>" + "\n".join(details) + "</blockquote>")
     return "\n".join(lines)
 
 def get_hostname():
