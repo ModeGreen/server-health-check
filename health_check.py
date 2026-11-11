@@ -17,6 +17,7 @@ import subprocess
 import yaml
 import requests
 from datetime import datetime
+from telegram_notify import send_telegram, get_token_and_id, TELEGRAM_TIMEOUT
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
@@ -291,10 +292,10 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
-    print(output_text)
+    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
     for alert in alerts:
-        print("  " + format_alert(alert))
+        report+= ("\n  " + format_alert(alert))
+    print(report)
 
     exit_code = get_exit_code(alerts)
 
@@ -305,8 +306,23 @@ def main():
     else:
         status = "OK"
 
-    write_history(journal, status, output_text)
+    write_history(journal, status, report)
 
+    last_status_path = script_dir/"last_status"
+    last_status = read_last_status(last_status_path)
+    if status != last_status:
+        token, chat_id = get_token_and_id()
+        if token and chat_id:
+            try:
+                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, report), TELEGRAM_TIMEOUT)
+            except RuntimeError as e:
+                print(f"ERROR: {e}", file=sys.stderr)
+                return exit_code
+            print(f"Alert sent to Telegram: {last_status} → {status}")
+            write_last_status(last_status_path, status)
+        else:
+            write_last_status(last_status_path, status)
+            
     return exit_code
 
 if __name__ == "__main__":
