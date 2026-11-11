@@ -5,3 +5,4 @@ history.log
 alerts.json
 health_check.yaml
 *.env
+last_status

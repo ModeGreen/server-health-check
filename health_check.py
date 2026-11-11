@@ -1,6 +1,8 @@
 """health_check.py — a health check for a Linux server.
 Prints a short report, saves problems to alerts.json and appends one line per run
 to history.log next to the script: time, host, status, result.
+When the status changes, sends a Telegram message (if TELEGRAM_BOT_TOKEN and
+TELEGRAM_CHAT_ID are set) and keeps the last status in last_status next to the script.
 
 Usage:   python3 health_check.py
 Config:  health_check.yaml next to the script (a copy of health_check.example.yaml),
@@ -17,12 +19,35 @@ import subprocess
 import yaml
 import requests
 from datetime import datetime
+from telegram_notify import send_telegram, get_token_and_id, TELEGRAM_TIMEOUT
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
+
+def make_message(host, old_status, new_status, report):
+    message = f"[{host}] {new_status} (was {old_status})\n{report}"
+    return message
+
+def get_hostname():
+    hostname = subprocess.run(["hostname"], capture_output=True, text=True)
+    return hostname.stdout.strip()
+
+def read_last_status(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            last_status = f.read().strip()
+    except OSError:
+        last_status = "OK"
+    if last_status not in ("OK", "WARNING", "CRITICAL"):
+        last_status = "OK"
+    return last_status
+
+def write_last_status(path, status):
+    Path(path).write_text(status + "\n", encoding="utf-8")
+    return
 
 def read_cpu_temp(path):
     for zone in Path(path).glob("thermal_zone*"):
@@ -101,8 +126,8 @@ def make_history_line(now, host, status, text):
     return f"{now.strftime('%Y-%m-%d %H:%M:%S')} {host} {status} {text}"
 
 def write_history(path, status, text):
-    host = subprocess.run(["hostname"], capture_output=True, text=True)
-    log_line = make_history_line(datetime.now(), host.stdout.strip() , status, text)
+    host = get_hostname()
+    log_line = make_history_line(datetime.now(), host, status, text)
     with open(path, "a", encoding="utf-8") as f:
         print(log_line, file=f)
     return
@@ -269,10 +294,11 @@ def main():
     with open(script_dir / "alerts.json", "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
-    output_text = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
-    print(output_text)
+    report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
+    history_report = report
     for alert in alerts:
-        print("  " + format_alert(alert))
+        report+= ("\n  " + format_alert(alert))
+    print(report)
 
     exit_code = get_exit_code(alerts)
 
@@ -283,8 +309,23 @@ def main():
     else:
         status = "OK"
 
-    write_history(journal, status, output_text)
+    write_history(journal, status, history_report)
 
+    last_status_path = script_dir/"last_status"
+    last_status = read_last_status(last_status_path)
+    if status != last_status:
+        token, chat_id = get_token_and_id()
+        if token and chat_id:
+            try:
+                send_telegram(token, chat_id, make_message(get_hostname(), last_status, status, report), TELEGRAM_TIMEOUT)
+            except RuntimeError as e:
+                print(f"ERROR: {e}", file=sys.stderr)
+                return exit_code
+            print(f"Alert sent to Telegram: {last_status} → {status}")
+            write_last_status(last_status_path, status)
+        else:
+            write_last_status(last_status_path, status)
+            
     return exit_code
 
 if __name__ == "__main__":

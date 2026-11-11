@@ -4,5 +4,6 @@ Description=Checking disk space, ram and cpu load, cpu temperature
 [Service]
 Type=oneshot
 Environment=HEALTH_CHECK_CONFIG=%h/.config/server-health-check/health_check.yaml
+EnvironmentFile=-%h/.config/server-health-check/telegram.env
 ExecStart=%h/server-health-check/.venv/bin/python %h/server-health-check/health_check.py
 SuccessExitStatus=1 2
