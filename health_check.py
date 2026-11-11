@@ -295,6 +295,7 @@ def main():
         json.dump(alerts, f, indent=2, ensure_ascii=False)
 
     report = f"Checked: disks ({len(disks)}), memory {mem_data['percent']}%, load {load_data['percent']}%, temp {temp_text}, services ({len(services)}). Problems: {len(alerts)}"
+    history_report = report
     for alert in alerts:
         report+= ("\n  " + format_alert(alert))
     print(report)
@@ -308,7 +309,7 @@ def main():
     else:
         status = "OK"
 
-    write_history(journal, status, report)
+    write_history(journal, status, history_report)
 
     last_status_path = script_dir/"last_status"
     last_status = read_last_status(last_status_path)
