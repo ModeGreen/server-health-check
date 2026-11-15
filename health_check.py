@@ -3,6 +3,7 @@ Prints a short report, saves problems to alerts.json and appends one line per ru
 to history.log next to the script: time, host, status, result.
 When the status changes, sends a Telegram message (if TELEGRAM_BOT_TOKEN and
 TELEGRAM_CHAT_ID are set) and keeps the last status in last_status next to the script.
+With --always-notify the message is sent even if the status did not change (used by bot.py).
 
 Usage:   python3 health_check.py
 Config:  health_check.yaml next to the script (a copy of health_check.example.yaml),
@@ -48,8 +49,12 @@ def read_battery(path):
     return None
 
 def make_message(host, old_status, new_status, alerts, summary):
+    if old_status == new_status:
+        second_line = "<i>checked on request</i>"
+    else:
+        second_line = f"<i>was {old_status}</i>"
     lines = [f"{STATUS_EMOJI[new_status]} <b>{new_status}</b> · <code>{html.escape(host)}</code>",
-             f"<i>was {old_status}</i>",
+             second_line,
              ""]
     if alerts:
         problems = []
@@ -384,7 +389,8 @@ def main():
 
     last_status_path = script_dir/"last_status"
     last_status = read_last_status(last_status_path)
-    if status != last_status:
+    always_notify = "--always-notify" in sys.argv
+    if status != last_status or always_notify:
         token, chat_id = get_token_and_id()
         if token and chat_id:
             try:

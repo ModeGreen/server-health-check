@@ -189,6 +189,23 @@ journalctl --user -u server-health-check -n 5
 
 If the check itself fails (exit code 3), no alert is sent; the service then shows up in `systemctl --user --failed`.
 
+## Telegram bot: check on request
+
+`bot.py` keeps running and waits for your messages. It adds a **🔄 Check now** button under the message field and the `/check` command to the bot menu. Press the button, and the check runs and sends its card even if the status did not change: the card then says "checked on request".
+
+The bot answers only your chat (`TELEGRAM_CHAT_ID`) and ignores everyone else: anyone can find a bot and press Start, but only you can run the check.
+
+Install it as a user service next to the timer:
+
+```bash
+cp systemd/server-health-check-bot.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now server-health-check-bot.service
+journalctl --user -u server-health-check-bot -f    # watch it work; Ctrl+C stops watching, not the bot
+```
+
+Then send `/start` to the bot to get the button. Only one copy of the bot can read messages at a time: while the service runs, don't start `bot.py` by hand, or Telegram answers `409 Conflict`.
+
 ## Roadmap
 
 - [x] Disk usage
@@ -198,6 +215,7 @@ If the check itself fails (exit code 3), no alert is sent; the service then show
 - [x] HTTP checks for services
 - [x] Run on a systemd timer
 - [x] Telegram alerts on status change
+- [x] Telegram bot: run the check on request
 - [ ] CI with GitHub Actions
 
 ## License
