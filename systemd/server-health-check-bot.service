@@ -1,0 +1,13 @@
+[Unit]
+Description=Telegram bot for server-health-check: runs the check on request
+
+[Service]
+Environment=HEALTH_CHECK_CONFIG=%h/.config/server-health-check/health_check.yaml
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=%h/.config/server-health-check/telegram.env
+ExecStart=%h/server-health-check/.venv/bin/python %h/server-health-check/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
