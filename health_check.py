@@ -22,6 +22,7 @@ import yaml
 import requests
 from datetime import datetime
 from telegram_notify import send_telegram, get_token_and_id, TELEGRAM_TIMEOUT
+import socket
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
@@ -280,6 +281,15 @@ def get_exit_code(alerts):
             return 2
         code = 1
     return code
+
+def check_port(name, host, port, timeout):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            pass
+    except (TimeoutError, OSError) as e:
+        error_name = type(e).__name__
+        return {"name": name, "status": "CRITICAL", "detail": f"no connection ({e.__class__.__name__})"}
+    return {"name": name, "status": "OK", "detail": "connected"}
 
 def main():
     script_dir = Path(__file__).parent
