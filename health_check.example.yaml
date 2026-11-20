@@ -33,9 +33,15 @@ battery:
   warning: 20
   critical: 10
 
-# Optional: HTTP checks for services, a GET request to each url.
+# Optional: checks for services.
+# A service with a url gets an HTTP GET request:
 # 200-399 is OK; any other status or no answer within 5 seconds is CRITICAL.
-# Real addresses go only into your local health_check.yaml, not into Git.
+# A service with a host and a port gets a TCP connection (for SSH, databases
+# and other services without HTTP): OK if it connects within 5 seconds.
+# Real addresses and ports go only into your local health_check.yaml, not into Git.
 # services:
 #   - name: my-app
 #     url: http://localhost:8080/health
+#   - name: my-db
+#     host: localhost
+#     port: 5432

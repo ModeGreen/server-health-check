@@ -16,6 +16,7 @@ import html
 import json
 import os
 import sys
+import socket
 from pathlib import Path
 import subprocess
 import yaml
@@ -26,6 +27,7 @@ from telegram_notify import send_telegram, get_token_and_id, TELEGRAM_TIMEOUT
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
 HTTP_TIMEOUT = 5
+TCP_TIMEOUT = 5
 THERMAL = "/sys/class/thermal"
 CPU_SENSOR = "x86_pkg_temp"
 POWER_SUPPLY = "/sys/class/power_supply"
@@ -114,14 +116,18 @@ def check_temperature(temp, warning, critical):
     detail = f"{round(temp, 1)} °C"
     return {"name": "temperature", "status": status, "detail": detail}
 
+def is_tcp_service(service):
+    port = service.get("port")
+    return type(port) == int and 1 <= port <= 65535 and isinstance(service.get("host"), str)
+
 def get_services(config):
     services = []
     if "services" in config and config["services"] is not None:
         if not isinstance(config["services"], list):
             raise ValueError("config: services must be a list")
         for serv in config["services"]:
-            if not isinstance(serv, dict) or not (isinstance(serv.get("name"), str) and isinstance(serv.get("url"), str)):
-                raise ValueError("config: every service needs a name and a url")
+            if not isinstance(serv, dict) or not (isinstance(serv.get("name"), str) and (isinstance(serv.get("url"), str) or is_tcp_service(serv))):
+                raise ValueError("config: every service needs a name and a url, or a host and a port (1-65535)")
             services.append(serv)
     return services
 
@@ -281,6 +287,14 @@ def get_exit_code(alerts):
         code = 1
     return code
 
+def check_port(name, host, port, timeout):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            pass
+    except OSError as e:
+        return {"name": name, "status": "CRITICAL", "detail": f"no connection ({e.__class__.__name__})"}
+    return {"name": name, "status": "OK", "detail": "connected"}
+
 def main():
     script_dir = Path(__file__).parent
     journal = script_dir / "history.log"
@@ -354,7 +368,10 @@ def main():
 
     # Checking services
     for service in services:
-        service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
+        if "url" in service:
+            service_health = check_service(service["name"], service["url"], HTTP_TIMEOUT)
+        else:
+            service_health = check_port(service["name"], service["host"], service["port"], TCP_TIMEOUT)
         if service_health["status"] != "OK":
             alerts.append(service_health)
 
