@@ -16,13 +16,13 @@ import html
 import json
 import os
 import sys
+import socket
 from pathlib import Path
 import subprocess
 import yaml
 import requests
 from datetime import datetime
 from telegram_notify import send_telegram, get_token_and_id, TELEGRAM_TIMEOUT
-import socket
 
 MEMINFO = "/proc/meminfo"
 LOADAVG = "/proc/loadavg"
@@ -117,9 +117,8 @@ def check_temperature(temp, warning, critical):
     return {"name": "temperature", "status": status, "detail": detail}
 
 def is_tcp_service(service):
-    if service.get("port") is not None and type(service["port"]) == int and 1<= service["port"] <= 65535 and service.get("host") is not None and type(service["host"]) == str:
-        return True
-    return False
+    port = service.get("port")
+    return type(port) == int and 1 <= port <= 65535 and isinstance(service.get("host"), str)
 
 def get_services(config):
     services = []
@@ -292,8 +291,7 @@ def check_port(name, host, port, timeout):
     try:
         with socket.create_connection((host, port), timeout=timeout):
             pass
-    except (TimeoutError, OSError) as e:
-        error_name = type(e).__name__
+    except OSError as e:
         return {"name": name, "status": "CRITICAL", "detail": f"no connection ({e.__class__.__name__})"}
     return {"name": name, "status": "OK", "detail": "connected"}
 
