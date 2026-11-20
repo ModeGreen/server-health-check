@@ -1,6 +1,6 @@
 # server-health-check
 
-A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature, laptop battery charge and whether services answer over HTTP, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system. When the status changes, it sends an alert to Telegram.
+A small health check for a Linux server, written in Python. It checks disk usage, memory, CPU load, CPU temperature, laptop battery charge and whether services answer over HTTP or accept TCP connections, prints a short report and exits with a Nagios-style code, so it can be run by cron, a systemd timer or a monitoring system. When the status changes, it sends an alert to Telegram.
 
 Built as part of my DevOps learning path; it runs on my home server.
 
@@ -13,7 +13,8 @@ Built as part of my DevOps learning path; it runs on my home server.
 | CPU load | `/proc/loadavg` | 15-minute load average per CPU, % (100% = all CPUs busy) | 100% / 200% |
 | CPU temperature | `/sys/class/thermal`, sensor `x86_pkg_temp` (Intel CPUs) | °C | 85 °C / 95 °C; skipped where there is no sensor (virtual machines, WSL) |
 | Laptop battery | `/sys/class/power_supply`, the supply with `type` = `Battery` | charge, %, with the charging status next to it | 20% / 10%, lower is worse; skipped where there is no battery |
-| Services | HTTP `GET` to each `url` from the config (`requests`, redirects are not followed) | HTTP status | 200–399 is OK; any other status or no answer within 5 s is CRITICAL |
+| Services (HTTP) | HTTP `GET` to each `url` from the config (`requests`, redirects are not followed) | HTTP status | 200–399 is OK; any other status or no answer within 5 s is CRITICAL |
+| Services (TCP) | a TCP connection to each `host` and `port` from the config — for services without HTTP: SSH, databases | connected or not | a connection within 5 s is OK; refused, no answer or an unknown host is CRITICAL |
 
 ## Example
 
@@ -90,9 +91,12 @@ temperature:        # °C
 battery:            # %, lower is worse: warning > critical
   warning: 20
   critical: 10
-services:           # optional: HTTP checks
-  - name: my-app
+services:           # optional: HTTP and TCP checks
+  - name: my-app      # a url: HTTP check
     url: http://localhost:8080/health
+  - name: my-db       # a host and a port: TCP check
+    host: localhost
+    port: 5432
 ```
 
 A missing section, bad thresholds or a bad `services` list stop the check with exit code `3` and a clear `ERROR:` message.
@@ -213,6 +217,7 @@ Then send `/start` to the bot to get the button. Only one copy of the bot can re
 - [x] CPU temperature
 - [x] Laptop battery charge
 - [x] HTTP checks for services
+- [x] TCP checks for services without HTTP
 - [x] Run on a systemd timer
 - [x] Telegram alerts on status change
 - [x] Telegram bot: run the check on request
